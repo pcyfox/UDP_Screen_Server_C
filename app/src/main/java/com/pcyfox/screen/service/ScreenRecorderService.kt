@@ -13,6 +13,8 @@ import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
 import com.blankj.utilcode.util.ScreenUtils
 import com.pcyfox.screen.ScreenDisplay
+import com.pcyfox.screen.Sender
+import kotlin.math.min
 
 
 /**
@@ -20,12 +22,13 @@ import com.pcyfox.screen.ScreenDisplay
  */
 @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
 class ScreenRecorderService : Service() {
+    private var serverDisplay: ScreenDisplay? = null
     override fun onCreate() {
         super.onCreate()
-        Log.e(TAG, "RTP Display service create")
         notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(channelId, channelId, NotificationManager.IMPORTANCE_HIGH)
+            val channel =
+                NotificationChannel(channelId, channelId, NotificationManager.IMPORTANCE_HIGH)
             notificationManager?.createNotificationChannel(channel)
         }
         keepAliveTrick()
@@ -34,9 +37,9 @@ class ScreenRecorderService : Service() {
     private fun keepAliveTrick() {
         if (Build.VERSION.SDK_INT > Build.VERSION_CODES.O) {
             val notification = NotificationCompat.Builder(this, channelId)
-                    .setOngoing(true)
-                    .setContentTitle("")
-                    .setContentText("").build()
+                .setOngoing(true)
+                .setContentTitle("")
+                .setContentText("").build()
             startForeground(1, notification)
         } else {
             startForeground(1, Notification())
@@ -50,58 +53,31 @@ class ScreenRecorderService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.i(TAG, "RTP Display service started")
-        if (resultCode != null) {
-            startStreamRtp(true)
+        requestDisplayIntent?.run {
+            if (serverDisplay == null) {
+                val maxPacketLen = min(w * h, (Sender.MAX_PKT_LEN * 0.8).toInt())
+                serverDisplay = ScreenDisplay(applicationContext, ip, port, maxPacketLen)
+                serverDisplay?.setIntentResult(resultCode, intent)
+            }
+            startStreamRtp(w, h, bitRate, fps)
         }
+
         return START_STICKY
     }
 
-    companion object {
-        private const val TAG = "ScreenRecordService"
-        private const val channelId = "ScreenRecordServiceChannel"
-        private const val notifyId = 1234567
-        private var notificationManager: NotificationManager? = null
-        private var serverDisplay: ScreenDisplay? = null
-        private var resultCode: Int? = null
-        private var data: Intent? = null
 
-        fun start(context: Context, resultCode: Int, intent: Intent?, endpoint: Int) {
-            Companion.resultCode = resultCode
-            init(context, resultCode, intent)
-            val startIntent = Intent()
-            startIntent.setClass(context, ScreenRecorderService::class.java)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(startIntent)
-            } else {
-                context.startService(startIntent)
-            }
+    fun isStreaming(): Boolean {
+        return if (serverDisplay == null) {
+            false
+        } else {
+            serverDisplay!!.isStreaming
         }
+    }
 
 
-        fun init(context: Context, resultCode: Int, intent: Intent?) {
-            serverDisplay = ScreenDisplay(context)
-            serverDisplay?.setIntentResult(resultCode, intent)
-        }
-
-        fun setData(resultCode: Int, data: Intent) {
-            Companion.resultCode = resultCode
-            Companion.data = data
-        }
-
-        fun isStreaming(): Boolean {
-            return if (serverDisplay == null) {
-                false
-            } else {
-                serverDisplay!!.isStreaming
-            }
-        }
-
-
-        fun stopStream() {
-            serverDisplay?.stopRecord()
-            serverDisplay?.stopStream()
-        }
-
+    fun stopStream() {
+        serverDisplay?.stopRecord()
+        serverDisplay?.stopStream()
     }
 
     override fun onDestroy() {
@@ -111,28 +87,68 @@ class ScreenRecorderService : Service() {
     }
 
 
-    private fun startStreamRtp(isDisableAudio: Boolean) {
-        //val w = ScreenUtils.getAppScreenWidth()
-        //val h = ScreenUtils.getAppScreenHeight()
-        val w = 1920
-        val h = 1080
-        val r = w * h * 1.0
+    private fun startStreamRtp(w: Int, h: Int, bitRate: Int, fps: Int) {
         serverDisplay?.run {
             if (!serverDisplay!!.isStreaming) {
-                val prepareAudio = serverDisplay!!.prepareAudio(16 * 1024, 8000, true, false, false);
-                val prepareVideo = serverDisplay!!.prepareVideo(w, h, 25, r.toInt(), 0, ScreenUtils.getScreenDensityDpi())
-                if (isDisableAudio && prepareVideo || (!isDisableAudio && prepareAudio && prepareVideo)) {
-                    if (isDisableAudio) {
-                        serverDisplay?.disableAudio()
-                    }
+                val prepareVideo = serverDisplay!!.prepareVideo(
+                    w,
+                    h,
+                    fps,
+                    bitRate,
+                    0,
+                    ScreenUtils.getScreenDensityDpi()
+                )
+                if (prepareVideo) {
                     serverDisplay!!.startStream()
-                    if (isDisableAudio) {
-                        serverDisplay?.disableAudio()
-                    }
                 }
             } else {
                 serverDisplay!!.stopStream()
             }
         }
+    }
+
+    companion object {
+        private const val TAG = "ScreenRecordService"
+        private const val channelId = "ScreenRecordServiceChannel"
+        private var notificationManager: NotificationManager? = null
+        private var resultCode: Int = -1
+        private var requestDisplayIntent: Intent? = null
+        private var w = 1920
+        private var h = 1080
+        private var fps = 25
+        private var bitRate: Int = (w * h * 0.8).toInt()
+        private var ip: String = Sender.BROADCAST_IP
+        private var port: Int = Sender.TARGET_PORT
+        fun start(
+            context: Context,
+            resultCode: Int,
+            requestDisplayIntent: Intent,
+            w: Int,
+            h: Int,
+            fps: Int,
+            bitRate: Int,
+            ip: String,
+            port: Int
+        ) {
+            Companion.h = h
+            Companion.w = w
+            Companion.fps = fps
+            Companion.bitRate = bitRate
+            Companion.ip = ip
+            Companion.port = port
+            Companion.resultCode = resultCode
+            Companion.requestDisplayIntent = requestDisplayIntent
+
+            val startIntent = Intent()
+            startIntent.setClass(context, ScreenRecorderService::class.java)
+            startIntent.putExtras(requestDisplayIntent)
+            startIntent.putExtra("resultCode", resultCode)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(startIntent)
+            } else {
+                context.startService(startIntent)
+            }
+        }
+
     }
 }

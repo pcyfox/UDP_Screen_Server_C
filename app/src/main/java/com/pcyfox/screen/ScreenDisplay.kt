@@ -7,10 +7,10 @@ import androidx.annotation.RequiresApi
 import java.nio.ByteBuffer
 
 @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
-class ScreenDisplay(context: Context) : DisplayBase(context, false) {
+class ScreenDisplay(context: Context, ip: String, port: Int, maxPacketLen: Int) :
+    DisplayBase(context, false) {
     var isStop = false
-    private val sender = Sender()
-
+    private val sender = Sender(ip, port, SocketType.UDP, maxPacketLength = maxPacketLen)
     override fun prepareAudioRtp(isStereo: Boolean, sampleRate: Int) {
     }
 
@@ -20,6 +20,7 @@ class ScreenDisplay(context: Context) : DisplayBase(context, false) {
     }
 
     override fun startStreamRtp(url: String) { //unused
+
     }
 
     override fun stopStreamRtp() {

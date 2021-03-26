@@ -43,7 +43,7 @@ import static android.content.Context.MEDIA_PROJECTION_SERVICE;
 @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
 public abstract class DisplayBase implements GetAacData, GetVideoData, GetMicrophoneData {
     private static final String TAG = "DisplayBase";
-    private boolean disableAudio = false;
+    private boolean disableAudio = true;
     protected Context context;
     private MediaProjection mediaProjection;
     private final MediaProjectionManager mediaProjectionManager;
