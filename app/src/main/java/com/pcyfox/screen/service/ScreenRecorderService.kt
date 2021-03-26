@@ -116,7 +116,7 @@ class ScreenRecorderService : Service() {
         //val h = ScreenUtils.getAppScreenHeight()
         val w = 1920
         val h = 1080
-        val r = w * h * 0.6
+        val r = w * h * 1.0
         serverDisplay?.run {
             if (!serverDisplay!!.isStreaming) {
                 val prepareAudio = serverDisplay!!.prepareAudio(16 * 1024, 8000, true, false, false);
