@@ -51,12 +51,12 @@ public abstract class DisplayBase implements GetAacData, GetVideoData, GetMicrop
     private final MicrophoneManager microphoneManager;
     private final AudioEncoder audioEncoder;
     private boolean streaming = false;
+    private boolean isRunning = false;
     protected SurfaceView surfaceView;
     private int dpi = 320;
     private VirtualDisplay virtualDisplay;
     private int resultCode = -1;
     private Intent data;
-    private boolean isRunning;
 
     public DisplayBase(Context context, boolean useOpengl) {
         this.context = context;
@@ -267,20 +267,41 @@ public abstract class DisplayBase implements GetAacData, GetVideoData, GetMicrop
      */
     public void stopStream() {
         if (streaming) {
-            streaming = false;
             stopStreamRtp();
+            streaming = false;
+            microphoneManager.stop();
+            if (mediaProjection != null) {
+                mediaProjection.stop();
+            }
+            videoEncoder.stop();
+            if (audioEncoder != null) {
+                audioEncoder.stop();
+            }
+            if (virtualDisplay != null) {
+                virtualDisplay.release();
+                virtualDisplay = null;
+            }
+            data = null;
         }
-        microphoneManager.stop();
-        if (mediaProjection != null) {
-            mediaProjection.stop();
-        }
-        videoEncoder.stop();
-        if (audioEncoder != null) {
-            audioEncoder.stop();
-        }
-        data = null;
     }
 
+    public boolean pause() {
+        if (virtualDisplay != null) {
+            streaming = false;
+        } else {
+            return false;
+        }
+        return true;
+    }
+
+    public boolean resume() {
+        if (virtualDisplay != null) {
+            streaming = true;
+        } else {
+            return false;
+        }
+        return true;
+    }
 
     /**
      * Replace with reTry(long delay, String reason);
@@ -289,8 +310,6 @@ public abstract class DisplayBase implements GetAacData, GetVideoData, GetMicrop
     public void reTry(long delay) {
         resetVideoEncoder();
     }
-
-
 
 
     /**
@@ -362,6 +381,7 @@ public abstract class DisplayBase implements GetAacData, GetVideoData, GetMicrop
     public boolean isStreaming() {
         return streaming;
     }
+
 
     /**
      * Get record state.

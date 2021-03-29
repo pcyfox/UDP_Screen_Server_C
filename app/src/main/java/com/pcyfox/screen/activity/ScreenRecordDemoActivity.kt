@@ -1,9 +1,7 @@
 package com.pcyfox.screen.activity
 
-import android.Manifest
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.Bundle
@@ -11,22 +9,18 @@ import android.view.View
 import android.view.WindowManager
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
 import com.blankj.utilcode.constant.PermissionConstants
 import com.blankj.utilcode.util.PermissionUtils
 import com.blankj.utilcode.util.ScreenUtils
+import com.blankj.utilcode.util.ToastUtils
 import com.pcyfox.screen.R
 import com.pcyfox.screen.Sender
 import com.pcyfox.screen.service.ScreenRecorderService
 import kotlinx.android.synthetic.main.activity_screen_record.*
-import kotlin.math.min
 
 
 class ScreenRecordDemoActivity : AppCompatActivity(), View.OnClickListener {
-    private val WRITE_EXTERNAL_STORAGE_REQUEST_CODE = 200
     private val REQUEST_CODE = 202
-    private val isDisableAudio = true;
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -43,6 +37,7 @@ class ScreenRecordDemoActivity : AppCompatActivity(), View.OnClickListener {
         vv_test.setOnPreparedListener {
             vv_test.start()
             it.isLooping = true
+
         }
         val w = ScreenUtils.getAppScreenWidth()
         val h = ScreenUtils.getAppScreenHeight()
@@ -56,12 +51,17 @@ class ScreenRecordDemoActivity : AppCompatActivity(), View.OnClickListener {
     override fun onClick(view: View) {
         when (view.id) {
             R.id.btn_start_screen -> {
-                startActivityForResult(
-                    (getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager).createScreenCaptureIntent(),
-                    REQUEST_CODE
-                )
+                if (btn_start_screen.text.toString() == "START") {
+                    btn_start_screen.text = "STOP"
+                    startActivityForResult(
+                        (getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager).createScreenCaptureIntent(),
+                        REQUEST_CODE
+                    )
+                } else {
+                    btn_start_screen.text = "START"
+                    ScreenRecorderService.stop(this)
+                }
             }
-
         }
     }
 
@@ -74,33 +74,22 @@ class ScreenRecordDemoActivity : AppCompatActivity(), View.OnClickListener {
         val r = Integer.parseInt(et_bitrate.text.toString())
         val fps = Integer.parseInt(et_fps.text.toString())
 
-        ScreenRecorderService.start(
-            this,
-            resultCode,
-            data!!,
-            w,
-            h,
-            fps,
-            r.toInt(),
-            Sender.BROADCAST_IP,
-            Sender.TARGET_PORT,
-        )
-    }
-
-
-    private fun requestSDPermission(): Boolean {
-        if (Build.VERSION.SDK_INT > Build.VERSION_CODES.LOLLIPOP_MR1) {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)
-                != PackageManager.PERMISSION_GRANTED
-            ) {
-                ActivityCompat.requestPermissions(
-                    this, arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE),
-                    WRITE_EXTERNAL_STORAGE_REQUEST_CODE
-                )
-                return false
-            }
+        if (data == null) {
+            ToastUtils.showShort("intent data=null!")
+        } else {
+            ScreenRecorderService.start(
+                this,
+                resultCode,
+                data,
+                w,
+                h,
+                fps,
+                r,
+                Sender.BROADCAST_IP,
+                Sender.TARGET_PORT,
+            )
         }
-        return true
+
     }
 
 

@@ -53,12 +53,37 @@ class ScreenRecorderService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.i(TAG, "RTP Display service started")
-        requestDisplayIntent?.run {
-            if (serverDisplay == null) {
-                val maxPacketLen = min(w * h, (Sender.MAX_PKT_LEN * 0.8).toInt())
-                serverDisplay = ScreenDisplay(applicationContext, ip, port, maxPacketLen)
-                serverDisplay?.setIntentResult(resultCode, intent)
+        intent?.run {
+            when (intent.getIntExtra(KEY_STATE, -1)) {
+                0 -> {//stop
+                    serverDisplay?.stopStream()
+                    stopSelf()
+                    return -1
+                }
+                //start
+                1 -> serverDisplay?.run {
+                    if (isStreaming) {
+                        return -1
+                    }
+                }
+
+                //pause
+                2 -> serverDisplay?.run {
+                    pause()
+                }
+                //resume
+                3 -> serverDisplay?.run {
+                    resume()
+                }
+                else -> {
+                }
             }
+        }
+
+        requestDisplayIntent?.run {
+            val maxPacketLen = min(w * h, (Sender.MAX_PKT_LEN * 0.8).toInt())
+            serverDisplay = ScreenDisplay(applicationContext, ip, port, maxPacketLen)
+            serverDisplay?.setIntentResult(resultCode, this)
             startStreamRtp(w, h, bitRate, fps)
         }
 
@@ -119,6 +144,28 @@ class ScreenRecorderService : Service() {
         private var bitRate: Int = (w * h * 0.8).toInt()
         private var ip: String = Sender.BROADCAST_IP
         private var port: Int = Sender.TARGET_PORT
+        private const val KEY_STATE = "KEY_STATE"
+
+        private fun changeState(context: Context, state: Int) {
+            val intent = Intent()
+            intent.setClass(context, ScreenRecorderService::class.java)
+            intent.putExtra(KEY_STATE, state)
+            context.startService(intent)
+        }
+
+
+        fun stop(context: Context) {
+            changeState(context, 0)
+        }
+
+        fun pause(context: Context) {
+            changeState(context, 1)
+        }
+
+        fun resume(context: Context) {
+            changeState(context, 2)
+        }
+
         fun start(
             context: Context,
             resultCode: Int,
@@ -141,6 +188,7 @@ class ScreenRecorderService : Service() {
 
             val startIntent = Intent()
             startIntent.setClass(context, ScreenRecorderService::class.java)
+            startIntent.putExtra(KEY_STATE, 1)
             startIntent.putExtras(requestDisplayIntent)
             startIntent.putExtra("resultCode", resultCode)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

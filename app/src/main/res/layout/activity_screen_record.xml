@@ -64,7 +64,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="22dp"
                 android:onClick="onClick"
-                android:text="Start" />
+                android:text="START" />
 
             <EditText
                 android:textColor="@android:color/holo_blue_light"
